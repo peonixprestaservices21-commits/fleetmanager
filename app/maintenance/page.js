@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import AddEntityModal from "@/components/AddEntityModal";
 
 export const dynamic = "force-dynamic";
 
@@ -9,16 +10,42 @@ const BADGE = {
 };
 
 export default async function MaintenancePage() {
-  const { rows } = await query(`
-    SELECT ma.*, v.plaque AS vehicule_plaque
-    FROM maintenances ma
-    LEFT JOIN vehicules v ON v.id = ma.vehicule_id
-    ORDER BY ma.created_at DESC
-  `);
+  const [{ rows }, vehiculesRes] = await Promise.all([
+    query(`
+      SELECT ma.*, v.plaque AS vehicule_plaque
+      FROM maintenances ma
+      LEFT JOIN vehicules v ON v.id = ma.vehicule_id
+      ORDER BY ma.created_at DESC
+    `),
+    query("SELECT id, plaque FROM vehicules ORDER BY plaque"),
+  ]);
 
   const enCours = rows.filter((m) => m.statut === "cours").length;
   const planifiees = rows.filter((m) => m.statut === "planned").length;
   const terminees = rows.filter((m) => m.statut === "done").length;
+
+  const maintenanceFields = [
+    {
+      name: "vehicule_id",
+      fieldLabel: "Véhicule",
+      type: "select",
+      options: vehiculesRes.rows.map((v) => ({ value: v.id, label: v.plaque })),
+    },
+    { name: "intervention", fieldLabel: "Intervention", required: true, placeholder: "Vidange + freins" },
+    {
+      name: "statut",
+      fieldLabel: "Statut",
+      type: "select",
+      options: [
+        { value: "cours", label: "En cours" },
+        { value: "planned", label: "Planifiée" },
+        { value: "done", label: "Terminée" },
+      ],
+    },
+    { name: "garage", fieldLabel: "Garage", placeholder: "Garage Sarr Auto, Thiès" },
+    { name: "cout_fcfa", fieldLabel: "Coût (FCFA)", type: "number" },
+    { name: "date_prevue", fieldLabel: "Date prévue", placeholder: "28/07/2026" },
+  ];
 
   return (
     <>
@@ -29,7 +56,12 @@ export default async function MaintenancePage() {
             {enCours} en cours · {planifiees} planifiée(s) · {terminees} terminée(s)
           </div>
         </div>
-        <button className="btn btn-gold">+ Planifier une intervention</button>
+        <AddEntityModal
+          label="Planifier une intervention"
+          buttonLabel="+ Planifier une intervention"
+          endpoint="/api/maintenance"
+          fields={maintenanceFields}
+        />
       </div>
 
       <div className="panel" style={{ padding: "22px 8px" }}>

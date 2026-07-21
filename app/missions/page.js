@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import AddEntityModal from "@/components/AddEntityModal";
 
 export const dynamic = "force-dynamic";
 
@@ -9,17 +10,50 @@ const BADGE = {
 };
 
 export default async function MissionsPage() {
-  const { rows } = await query(`
-    SELECT m.*, c.nom AS chauffeur_nom, v.plaque AS vehicule_plaque
-    FROM missions m
-    LEFT JOIN chauffeurs c ON c.id = m.chauffeur_id
-    LEFT JOIN vehicules v ON v.id = m.vehicule_id
-    ORDER BY m.created_at DESC
-  `);
+  const [{ rows }, chauffeursRes, vehiculesRes] = await Promise.all([
+    query(`
+      SELECT m.*, c.nom AS chauffeur_nom, v.plaque AS vehicule_plaque
+      FROM missions m
+      LEFT JOIN chauffeurs c ON c.id = m.chauffeur_id
+      LEFT JOIN vehicules v ON v.id = m.vehicule_id
+      ORDER BY m.created_at DESC
+    `),
+    query("SELECT id, nom FROM chauffeurs ORDER BY nom"),
+    query("SELECT id, plaque FROM vehicules ORDER BY plaque"),
+  ]);
 
   const enCours = rows.filter((m) => m.statut === "mission").length;
   const planifiees = rows.filter((m) => m.statut === "planned").length;
   const terminees = rows.filter((m) => m.statut === "done").length;
+
+  const missionFields = [
+    { name: "reference", fieldLabel: "Référence", required: true, placeholder: "#M-0143" },
+    {
+      name: "chauffeur_id",
+      fieldLabel: "Chauffeur",
+      type: "select",
+      options: chauffeursRes.rows.map((c) => ({ value: c.id, label: c.nom })),
+    },
+    {
+      name: "vehicule_id",
+      fieldLabel: "Véhicule",
+      type: "select",
+      options: vehiculesRes.rows.map((v) => ({ value: v.id, label: v.plaque })),
+    },
+    { name: "origine", fieldLabel: "Origine", required: true, placeholder: "Thiès" },
+    { name: "destination", fieldLabel: "Destination", required: true, placeholder: "Diamniadio" },
+    {
+      name: "statut",
+      fieldLabel: "Statut",
+      type: "select",
+      options: [
+        { value: "mission", label: "En cours" },
+        { value: "planned", label: "Planifiée" },
+        { value: "done", label: "Terminée" },
+      ],
+    },
+    { name: "horaire", fieldLabel: "Horaire", placeholder: "Aujourd'hui, 08h30" },
+  ];
 
   return (
     <>
@@ -30,7 +64,12 @@ export default async function MissionsPage() {
             {enCours} en cours · {planifiees} planifiée(s) · {terminees} terminée(s) cette semaine
           </div>
         </div>
-        <button className="btn btn-gold">+ Nouvelle mission</button>
+        <AddEntityModal
+          label="Nouvelle mission"
+          buttonLabel="+ Nouvelle mission"
+          endpoint="/api/missions"
+          fields={missionFields}
+        />
       </div>
 
       <div className="toolbar">

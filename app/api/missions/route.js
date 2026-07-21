@@ -13,12 +13,24 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  const body = await req.json();
-  const { reference, chauffeur_id, vehicule_id, origine, destination, statut, horaire } = body;
-  const { rows } = await query(
-    `INSERT INTO missions (reference, chauffeur_id, vehicule_id, origine, destination, statut, horaire)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [reference, chauffeur_id || null, vehicule_id || null, origine, destination, statut || "planned", horaire || null]
-  );
-  return NextResponse.json(rows[0], { status: 201 });
+  try {
+    const body = await req.json();
+    const { reference, chauffeur_id, vehicule_id, origine, destination, statut, horaire } = body;
+    const { rows } = await query(
+      `INSERT INTO missions (reference, chauffeur_id, vehicule_id, origine, destination, statut, horaire)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        reference,
+        chauffeur_id ? parseInt(chauffeur_id, 10) : null,
+        vehicule_id ? parseInt(vehicule_id, 10) : null,
+        origine,
+        destination,
+        statut || "planned",
+        horaire || null,
+      ]
+    );
+    return NextResponse.json(rows[0], { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
 }

@@ -1,14 +1,39 @@
 import { query } from "@/lib/db";
+import AddEntityModal from "@/components/AddEntityModal";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChauffeursPage() {
-  const { rows } = await query(`
-    SELECT c.*, v.plaque AS vehicule_plaque
-    FROM chauffeurs c
-    LEFT JOIN vehicules v ON v.id = c.vehicule_id
-    ORDER BY c.nom
-  `);
+  const [{ rows }, vehiculesRes] = await Promise.all([
+    query(`
+      SELECT c.*, v.plaque AS vehicule_plaque
+      FROM chauffeurs c
+      LEFT JOIN vehicules v ON v.id = c.vehicule_id
+      ORDER BY c.nom
+    `),
+    query("SELECT id, plaque FROM vehicules ORDER BY plaque"),
+  ]);
+
+  const chauffeurFields = [
+    { name: "nom", fieldLabel: "Nom complet", required: true, placeholder: "Moussa Diop" },
+    { name: "permis", fieldLabel: "Permis", placeholder: "Permis B" },
+    { name: "annees_experience", fieldLabel: "Années d'expérience", type: "number" },
+    {
+      name: "vehicule_id",
+      fieldLabel: "Véhicule assigné",
+      type: "select",
+      options: vehiculesRes.rows.map((v) => ({ value: v.id, label: v.plaque })),
+    },
+    {
+      name: "statut",
+      fieldLabel: "Statut",
+      type: "select",
+      options: [
+        { value: "dispo", label: "Disponible" },
+        { value: "mission", label: "En mission" },
+      ],
+    },
+  ];
 
   return (
     <>
@@ -17,7 +42,12 @@ export default async function ChauffeursPage() {
           <h1>Chauffeurs</h1>
           <div className="sub">{rows.length} chauffeurs actifs</div>
         </div>
-        <button className="btn btn-gold">+ Ajouter un chauffeur</button>
+        <AddEntityModal
+          label="Nouveau chauffeur"
+          buttonLabel="+ Ajouter un chauffeur"
+          endpoint="/api/chauffeurs"
+          fields={chauffeurFields}
+        />
       </div>
 
       <div className="toolbar">

@@ -1,9 +1,10 @@
 import { query } from "@/lib/db";
+import AddEntityModal from "@/components/AddEntityModal";
 
 export const dynamic = "force-dynamic";
 
 export default async function CarburantPage() {
-  const [logs, totals] = await Promise.all([
+  const [logs, totals, vehiculesRes, chauffeursRes] = await Promise.all([
     query(`
       SELECT f.*, v.plaque AS vehicule_plaque, c.nom AS chauffeur_nom
       FROM carburant_logs f
@@ -16,7 +17,27 @@ export default async function CarburantPage() {
       SELECT COALESCE(SUM(cout_fcfa),0) AS total_fcfa, COALESCE(SUM(volume_l),0) AS total_l
       FROM carburant_logs WHERE date_plein >= date_trunc('month', CURRENT_DATE)
     `),
+    query("SELECT id, plaque FROM vehicules ORDER BY plaque"),
+    query("SELECT id, nom FROM chauffeurs ORDER BY nom"),
   ]);
+
+  const carburantFields = [
+    {
+      name: "vehicule_id",
+      fieldLabel: "Véhicule",
+      type: "select",
+      options: vehiculesRes.rows.map((v) => ({ value: v.id, label: v.plaque })),
+    },
+    {
+      name: "chauffeur_id",
+      fieldLabel: "Chauffeur",
+      type: "select",
+      options: chauffeursRes.rows.map((c) => ({ value: c.id, label: c.nom })),
+    },
+    { name: "date_plein", fieldLabel: "Date du plein", type: "date" },
+    { name: "volume_l", fieldLabel: "Volume (L)", type: "number", required: true },
+    { name: "cout_fcfa", fieldLabel: "Coût (FCFA)", type: "number", required: true },
+  ];
 
   const rows = logs.rows;
   const maxCout = Math.max(...rows.map((r) => Number(r.cout_fcfa)), 1);
@@ -30,7 +51,12 @@ export default async function CarburantPage() {
           <h1>Carburant</h1>
           <div className="sub">Suivi des pleins</div>
         </div>
-        <button className="btn btn-gold">+ Enregistrer un plein</button>
+        <AddEntityModal
+          label="Enregistrer un plein"
+          buttonLabel="+ Enregistrer un plein"
+          endpoint="/api/carburant"
+          fields={carburantFields}
+        />
       </div>
 
       <div className="kpi-row">
