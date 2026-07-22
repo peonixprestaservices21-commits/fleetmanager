@@ -1,5 +1,5 @@
 "use client";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const NAV = [
   { label: "Tableau de bord", href: "/" },
@@ -12,6 +12,13 @@ const NAV = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="sidebar">
@@ -37,7 +44,24 @@ export default function Sidebar() {
         AfrikaStudio
         <br />
         Gestion Flotte PME · Sénégal
+        <br />
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--gold)",
+            cursor: "pointer",
+            fontSize: "11.5px",
+            padding: 0,
+            marginTop: 8,
+          }}
+        >
+          Déconnexion
+        </button>
       </div>
     </aside>
   );
 }
+
