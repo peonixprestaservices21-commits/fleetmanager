@@ -23,6 +23,27 @@ async function getData() {
     GROUP BY v.plaque ORDER BY v.plaque
   `);
 
+  const fuelTrend = await query(`
+    SELECT to_char(month, 'Mon') AS label, COALESCE(SUM(f.cout_fcfa), 0) AS total
+    FROM generate_series(
+      date_trunc('month', CURRENT_DATE) - interval '5 months',
+      date_trunc('month', CURRENT_DATE),
+      interval '1 month'
+    ) AS month
+    LEFT JOIN carburant_logs f ON date_trunc('month', f.date_plein) = month
+    GROUP BY month
+    ORDER BY month
+  `);
+
+  const missionsByDriver = await query(`
+    SELECT c.nom, COUNT(m.id) AS total
+    FROM chauffeurs c
+    LEFT JOIN missions m ON m.chauffeur_id = c.id
+    GROUP BY c.nom
+    ORDER BY total DESC, c.nom
+    LIMIT 8
+  `);
+
   return {
     vehicules: vehicules.rows,
     nbChauffeurs: chauffeursCount.rows[0].count,
@@ -30,12 +51,16 @@ async function getData() {
     carburantTotal: carburantMois.rows[0].total,
     nbAlertesMaint: alertesMaint.rows[0].count,
     fuelByVehicule: fuelByVehicule.rows,
+    fuelTrend: fuelTrend.rows,
+    missionsByDriver: missionsByDriver.rows,
   };
 }
 
 export default async function DashboardPage() {
   const data = await getData();
   const maxFuel = Math.max(...data.fuelByVehicule.map((f) => Number(f.total_l)), 1);
+  const maxFuelTrend = Math.max(...data.fuelTrend.map((f) => Number(f.total)), 1);
+  const maxMissionsDriver = Math.max(...data.missionsByDriver.map((m) => Number(m.total)), 1);
   const positions = data.vehicules.map((_, i) => 8 + (i * 84) / Math.max(data.vehicules.length - 1, 1));
 
   return (
@@ -110,7 +135,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ padding: "24px 26px" }}>
+      <div className="panel" style={{ padding: "24px 26px", marginBottom: 20 }}>
         <div className="section-head">
           <h2>Consommation carburant par véhicule (L) — ce mois</h2>
         </div>
@@ -122,6 +147,38 @@ export default async function DashboardPage() {
               <div className="name">{f.plaque}</div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <div className="panel" style={{ padding: "24px 26px" }}>
+          <div className="section-head">
+            <h2>Dépense carburant — 6 derniers mois</h2>
+          </div>
+          <div className="bars">
+            {data.fuelTrend.map((f, i) => (
+              <div className="bar-col" key={i}>
+                <div className="val">{Number(f.total).toLocaleString("fr-FR")}</div>
+                <div className="bar" style={{ height: `${Math.max((Number(f.total) / maxFuelTrend) * 100, 4)}%` }} />
+                <div className="name">{f.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel" style={{ padding: "24px 26px" }}>
+          <div className="section-head">
+            <h2>Missions par chauffeur</h2>
+          </div>
+          <div className="bars">
+            {data.missionsByDriver.map((m, i) => (
+              <div className="bar-col" key={i}>
+                <div className="val">{Number(m.total)}</div>
+                <div className="bar" style={{ height: `${Math.max((Number(m.total) / maxMissionsDriver) * 100, 4)}%` }} />
+                <div className="name">{m.nom.split(" ")[0]}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </>
