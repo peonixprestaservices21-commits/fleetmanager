@@ -16,43 +16,11 @@ async function getData() {
     query("SELECT COUNT(*) FROM maintenances WHERE statut IN ('planned','cours')"),
   ]);
 
-  // Requête protégée : la table assurances peut ne pas encore exister si la migration n'a pas été lancée
-  let nbAlertesAssurance = 0;
-  try {
-    const alertesAssurance = await query(
-      `SELECT COUNT(*) FROM assurances WHERE date_fin <= CURRENT_DATE + INTERVAL '30 days'`
-    );
-    nbAlertesAssurance = alertesAssurance.rows[0].count;
-  } catch (err) {
-    nbAlertesAssurance = 0;
-  }
-
   const fuelByVehicule = await query(`
     SELECT v.plaque, COALESCE(SUM(f.volume_l),0) AS total_l
     FROM vehicules v
     LEFT JOIN carburant_logs f ON f.vehicule_id = v.id AND f.date_plein >= date_trunc('month', CURRENT_DATE)
     GROUP BY v.plaque ORDER BY v.plaque
-  `);
-
-  const fuelTrend = await query(`
-    SELECT to_char(month, 'Mon') AS label, COALESCE(SUM(f.cout_fcfa), 0) AS total
-    FROM generate_series(
-      date_trunc('month', CURRENT_DATE) - interval '5 months',
-      date_trunc('month', CURRENT_DATE),
-      interval '1 month'
-    ) AS month
-    LEFT JOIN carburant_logs f ON date_trunc('month', f.date_plein) = month
-    GROUP BY month
-    ORDER BY month
-  `);
-
-  const missionsByDriver = await query(`
-    SELECT c.nom, COUNT(m.id) AS total
-    FROM chauffeurs c
-    LEFT JOIN missions m ON m.chauffeur_id = c.id
-    GROUP BY c.nom
-    ORDER BY total DESC, c.nom
-    LIMIT 8
   `);
 
   return {
@@ -61,18 +29,13 @@ async function getData() {
     nbMissionsActives: missionsActives.rows[0].count,
     carburantTotal: carburantMois.rows[0].total,
     nbAlertesMaint: alertesMaint.rows[0].count,
-    nbAlertesAssurance,
     fuelByVehicule: fuelByVehicule.rows,
-    fuelTrend: fuelTrend.rows,
-    missionsByDriver: missionsByDriver.rows,
   };
 }
 
 export default async function DashboardPage() {
   const data = await getData();
   const maxFuel = Math.max(...data.fuelByVehicule.map((f) => Number(f.total_l)), 1);
-  const maxFuelTrend = Math.max(...data.fuelTrend.map((f) => Number(f.total)), 1);
-  const maxMissionsDriver = Math.max(...data.missionsByDriver.map((m) => Number(m.total)), 1);
   const positions = data.vehicules.map((_, i) => 8 + (i * 84) / Math.max(data.vehicules.length - 1, 1));
 
   return (
@@ -118,16 +81,6 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {Number(data.nbAlertesAssurance) > 0 && (
-        <div className="alert">
-          <span className="ico">⚠</span>
-          <span>
-            <b>{data.nbAlertesAssurance} assurance(s)</b> à renouveler dans les 30 jours (ou déjà expirée(s))
-          </span>
-          <a href="/assurances">Voir les polices →</a>
-        </div>
-      )}
-
       <div className="panel" style={{ padding: "26px 28px 30px", marginBottom: 32 }}>
         <div className="section-head">
           <h2>État de la flotte</h2>
@@ -157,7 +110,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ padding: "24px 26px", marginBottom: 20 }}>
+      <div className="panel" style={{ padding: "24px 26px" }}>
         <div className="section-head">
           <h2>Consommation carburant par véhicule (L) — ce mois</h2>
         </div>
@@ -169,38 +122,6 @@ export default async function DashboardPage() {
               <div className="name">{f.plaque}</div>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="grid-2">
-        <div className="panel" style={{ padding: "24px 26px" }}>
-          <div className="section-head">
-            <h2>Dépense carburant — 6 derniers mois</h2>
-          </div>
-          <div className="bars">
-            {data.fuelTrend.map((f, i) => (
-              <div className="bar-col" key={i}>
-                <div className="val">{Number(f.total).toLocaleString("fr-FR")}</div>
-                <div className="bar" style={{ height: `${Math.max((Number(f.total) / maxFuelTrend) * 100, 4)}%` }} />
-                <div className="name">{f.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel" style={{ padding: "24px 26px" }}>
-          <div className="section-head">
-            <h2>Missions par chauffeur</h2>
-          </div>
-          <div className="bars">
-            {data.missionsByDriver.map((m, i) => (
-              <div className="bar-col" key={i}>
-                <div className="val">{Number(m.total)}</div>
-                <div className="bar" style={{ height: `${Math.max((Number(m.total) / maxMissionsDriver) * 100, 4)}%` }} />
-                <div className="name">{m.nom.split(" ")[0]}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </>
